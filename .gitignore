@@ -1,0 +1,9 @@
+# User-specific configuration and measurement output
+.env
+results/
+__pycache__/
+*.py[cod]
+
+# Local Hugging Face cache when model files are downloaded beside the repository
+.cache/
+models/

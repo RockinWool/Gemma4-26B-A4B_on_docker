@@ -1,0 +1,68 @@
+name: gemma4-a4b-qat-mtp
+services:
+  gemma-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.llama-server
+      args:
+        CUDA_ARCH: ${CUDA_ARCH}
+    image: gemma4-a4b-llama-server:local
+    gpus: all
+    environment:
+      CUDA_DEVICE_ORDER: PCI_BUS_ID
+      CUDA_VISIBLE_DEVICES: ${GPU_DEVICE}
+    ports:
+      - "127.0.0.1:${PORT}:8080"
+    volumes:
+      - "${MODEL_DIR}:/models:ro"
+    command:
+      - /opt/llama.cpp/build/bin/llama-server
+      - -m
+      - /models/${MODEL_FILE}
+      - -md
+      - /models/${MTP_FILE}
+      - --spec-type
+      - draft-mtp
+      - --spec-draft-n-max
+      - '2'
+      - --jinja
+      - --device
+      - CUDA0
+      - --split-mode
+      - none
+      - --main-gpu
+      - '0'
+      - -ngl
+      - '${GPU_LAYERS}'
+      - --n-cpu-moe
+      - '${CPU_MOE_LAYERS}'
+      - -c
+      - '${CONTEXT_SIZE}'
+      - --fit
+      - 'off'
+      - --load-mode
+      - none
+      - -fa
+      - 'on'
+      - --cache-type-k
+      - q4_0
+      - --cache-type-v
+      - q4_0
+      - -t
+      - '8'
+      - -tb
+      - '8'
+      - --ubatch-size
+      - '512'
+      - -np
+      - '1'
+      - --host
+      - 0.0.0.0
+      - --port
+      - '8080'
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 90s
