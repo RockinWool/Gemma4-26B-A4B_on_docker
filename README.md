@@ -8,7 +8,17 @@ The design targets GPUs that cannot hold the complete 16.8GB GGUF with an adequa
 
 ## Validation status
 
-This branch targets RTX 3070 8GB (Ampere / SM 86) using CUDA 12.4.1 and a 128-token microbatch. On 2026-10-09, an RTX 3070 8GB system running Ubuntu 24.04 completed the CUDA build, server startup, model-list request, and interactive chat at a configured 65,536-token context. Throughput and memory measurements were not recorded, so the branch retains a conservative 16,384-token default for new installations. The figures below are historical results from the original RTX 5060 Ti configuration, not RTX 3070 measurements.
+This branch targets RTX 3070 8GB (Ampere / SM 86) using CUDA 12.4.1 and a 128-token microbatch. On 2026-10-09, an RTX 3070 8GB system running Ubuntu 24.04 completed the CUDA build, server startup, model-list request, interactive chat, and benchmark at a configured 65,536-token context. The branch retains a conservative 16,384-token default for new installations.
+
+| RTX 3070 benchmark | Result |
+|---|---:|
+| Cold prompt | 7,094 tokens |
+| Prompt processing | **302.27 tok/s** |
+| Decode | **36.38 tok/s** |
+| MTP acceptance | 18 / 20 (90%) |
+| End-to-end wall time | 24.274s |
+
+CPU, system RAM, and GPU-memory use were not recorded. See [docs/BENCHMARKS.md](docs/BENCHMARKS.md) for the full result and the RTX 5060 Ti reference measurements.
 
 ## Original configuration measurements
 
@@ -17,7 +27,7 @@ This branch targets RTX 3070 8GB (Ampere / SM 86) using CUDA 12.4.1 and a 128-to
 - 28,296-token cold prompt: **666.81 tok/s prefill**, **45.23 tok/s decode**, 90% MTP draft acceptance
 - Runtime GPU memory: **4.41GiB / 16GiB** after the long request
 
-See [docs/BENCHMARKS.md](docs/BENCHMARKS.md) for conditions and the 32K comparison. Your performance will depend on GPU compute, memory bandwidth, CPU RAM bandwidth, CUDA architecture, and llama.cpp revision.
+Your performance will depend on GPU compute, memory bandwidth, CPU RAM bandwidth, CUDA architecture, and llama.cpp revision.
 
 ## Requirements
 
@@ -71,7 +81,7 @@ Open [http://127.0.0.1:8096](http://127.0.0.1:8096) for llama.cpp's built-in cha
 
 | GPU memory | Suggested starting context | Notes |
 |---:|---:|---|
-| RTX 3070 8GB | 16,384 | Conservative default. A 65,536-token configuration has completed startup and chat on one Ubuntu 24.04 system. |
+| RTX 3070 8GB | 16,384 | Conservative default. A 65,536-token configuration has completed startup, chat, and the benchmark on one Ubuntu 24.04 system. |
 | RTX 5060 Ti 16GB (original branch) | 131,072 | Historical result; use main for RTX 50-series. |
 
 The values are starting points, not guarantees. For an 8GB GPU, keep `CPU_MOE_LAYERS=30`, use Q4 KV cache, close competing GPU workloads, and validate with a short request before raising context.
