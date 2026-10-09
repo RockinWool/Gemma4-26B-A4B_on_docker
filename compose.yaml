@@ -5,7 +5,8 @@ services:
       context: .
       dockerfile: Dockerfile.llama-server
       args:
-        CUDA_ARCH: ${CUDA_ARCH}
+        CUDA_ARCH: ${CUDA_ARCH:-120}
+        BUILD_JOBS: ${BUILD_JOBS:-4}
     image: gemma4-a4b-llama-server:local
     gpus: all
     environment:
@@ -53,7 +54,7 @@ services:
       - -tb
       - '8'
       - --ubatch-size
-      - '512'
+      - '${UBATCH_SIZE:-512}'
       - -np
       - '1'
       - --host

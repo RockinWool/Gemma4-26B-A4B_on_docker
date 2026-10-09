@@ -6,6 +6,15 @@ The design targets GPUs that cannot hold the complete 16.8GB GGUF with an adequa
 
 > This repository contains Docker and orchestration code only. Model weights, the vision projector, and their respective licenses remain upstream. The bundled model is an uncensored community fine-tune; assess it before using it in a setting that requires safeguards.
 
+## Hardware profiles
+
+| Branch | GPU profile | CUDA build | Starting context |
+|---|---|---:|---:|
+| `main` | RTX 50-series (`sm_120`) | 13.0 | 65,536 |
+| [`rtx3070-8gb`](https://github.com/RockinWool/Gemma4-26B-A4B_on_docker/tree/rtx3070-8gb) | RTX 3070 8GB (`sm_86`) | 12.4.1 | 16,384 |
+
+Use the branch matching the GPU. Each start script rejects an `.env` created for the other profile before rebuilding.
+
 ## What was validated
 
 - RTX 5060 Ti 16GB + Ryzen 7 7700X + 60GiB RAM
@@ -18,7 +27,7 @@ See [docs/BENCHMARKS.md](docs/BENCHMARKS.md) for conditions and the 32K comparis
 ## Requirements
 
 - Linux with Docker Engine and Docker Compose v2
-- NVIDIA driver and NVIDIA Container Toolkit configured for Docker (`docker run --gpus all ... nvidia-smi` must work)
+- NVIDIA driver and [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) configured for Docker (`docker run --gpus all ... nvidia-smi` must work)
 - A CUDA-capable NVIDIA GPU
 - At least 32GB system RAM; 64GB or more is recommended
 - Approximately 18GB disk space for the text GGUF plus MTP head; add 1.2GB for optional vision
@@ -42,7 +51,7 @@ For vision experiments, also download `mmproj-Gemma4-26B-A4B-QAT-Uncensored-Hauh
 ### 2. Configure and build
 
 ```bash
-git clone git@github.com:RockinWool/Gemma4-26B-A4B_on_docker.git
+git clone https://github.com/RockinWool/Gemma4-26B-A4B_on_docker.git
 cd Gemma4-26B-A4B_on_docker
 ./scripts/install.sh --model-dir ~/models/Gemma4-26B-A4B-QAT-MTP --context 65536 --cuda-arch 120
 ```
@@ -56,7 +65,7 @@ cd Gemma4-26B-A4B_on_docker
 curl http://127.0.0.1:8096/v1/models
 ```
 
-The server exposes an OpenAI-compatible API at `http://127.0.0.1:8096/v1`. Stop it with `./scripts/stop.sh`.
+Open [http://127.0.0.1:8096](http://127.0.0.1:8096) for llama.cpp's built-in chat interface. The server exposes an OpenAI-compatible API at `http://127.0.0.1:8096/v1`. See [Chat and API access](docs/CHAT.md) for a complete curl request and SSH access from another computer. Stop it with `./scripts/stop.sh`.
 
 ## Context and VRAM guidance
 
@@ -82,6 +91,7 @@ The API response includes llama.cpp's `timings.prompt_per_second`, `timings.pred
 - `-md ... --spec-type draft-mtp`: enables native multi-token prediction with the supplied draft head.
 - `--cache-type-k q4_0 --cache-type-v q4_0`: reduces KV-cache memory use.
 - `--fit off`: avoids a current automatic-fit issue with this Gemma 4 server profile.
+- The Docker build pins llama.cpp to commit `3d65c90d04d337e88f2b1f7f0061f40a5324e662` so rebuilding the same repository revision does not silently change the inference engine.
 
 ## License
 
