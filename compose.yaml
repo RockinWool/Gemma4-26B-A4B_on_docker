@@ -1,12 +1,13 @@
-name: gemma4-a4b-qat-mtp
+name: gemma4-a4b-rtx3070
 services:
   gemma-server:
     build:
       context: .
       dockerfile: Dockerfile.llama-server
       args:
-        CUDA_ARCH: ${CUDA_ARCH}
-    image: gemma4-a4b-llama-server:local
+        CUDA_ARCH: ${CUDA_ARCH:-86}
+        BUILD_JOBS: ${BUILD_JOBS:-4}
+    image: gemma4-a4b-llama-server:rtx3070
     gpus: all
     environment:
       CUDA_DEVICE_ORDER: PCI_BUS_ID
@@ -53,7 +54,7 @@ services:
       - -tb
       - '8'
       - --ubatch-size
-      - '512'
+      - '${UBATCH_SIZE:-128}'
       - -np
       - '1'
       - --host

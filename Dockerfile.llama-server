@@ -1,11 +1,16 @@
-FROM nvidia/cuda:13.0.0-devel-ubuntu24.04
+FROM nvidia/cuda:12.4.1-devel-ubuntu22.04
 
-ARG CUDA_ARCH=120
+ARG CUDA_ARCH=86
+ARG LLAMA_CPP_REF=3d65c90d04d337e88f2b1f7f0061f40a5324e662
+ARG BUILD_JOBS=4
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git cmake build-essential libcurl4-openssl-dev curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /opt
-RUN git clone --depth 1 https://github.com/ggml-org/llama.cpp.git
+RUN git init llama.cpp && cd llama.cpp \
+    && git remote add origin https://github.com/ggml-org/llama.cpp.git \
+    && git fetch --depth 1 origin ${LLAMA_CPP_REF} \
+    && git checkout --detach FETCH_HEAD
 WORKDIR /opt/llama.cpp
 RUN ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/libcuda.so.1 \
     && cmake -B build \
@@ -14,5 +19,5 @@ RUN ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/lib
       -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH} \
       -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_EXE_LINKER_FLAGS="-Wl,-rpath-link,/usr/local/cuda/lib64/stubs" \
-    && cmake --build build -j"$(nproc)"
+    && cmake --build build -j"${BUILD_JOBS}"
 WORKDIR /workspace

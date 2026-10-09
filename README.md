@@ -1,4 +1,4 @@
-# Gemma 4 26B-A4B QAT MTP on Docker
+# Gemma 4 26B-A4B QAT MTP — RTX 3070 8GB branch
 
 A reproducible Docker configuration for running [HauhauCS/Gemma4-26B-A4B-QAT-Uncensored-HauhauCS-Balanced-MTP](https://huggingface.co/HauhauCS/Gemma4-26B-A4B-QAT-Uncensored-HauhauCS-Balanced-MTP) with current `llama.cpp`, CUDA, Q4 KV cache, CPU-resident MoE layers, and the bundled MTP draft head.
 
@@ -6,7 +6,11 @@ The design targets GPUs that cannot hold the complete 16.8GB GGUF with an adequa
 
 > This repository contains Docker and orchestration code only. Model weights, the vision projector, and their respective licenses remain upstream. The bundled model is an uncensored community fine-tune; assess it before using it in a setting that requires safeguards.
 
-## What was validated
+## Validation status
+
+This branch targets RTX 3070 8GB (Ampere / SM 86) using CUDA 12.4.1, a 16,384-token context and a 128-token microbatch. **RTX 3070 inference and the Docker build have not been tested here**; the environment used to prepare this branch has no Docker or NVIDIA GPU. The figures below are historical results from the original RTX 5060 Ti configuration, not RTX 3070 measurements.
+
+## Original configuration measurements
 
 - RTX 5060 Ti 16GB + Ryzen 7 7700X + 60GiB RAM
 - 131,072-token context with Q4_0 K/V cache
@@ -17,7 +21,10 @@ See [docs/BENCHMARKS.md](docs/BENCHMARKS.md) for conditions and the 32K comparis
 
 ## Requirements
 
-- Linux with Docker Engine and Docker Compose v2
+- Linux with Docker Engine and Docker Compose v2.30+ (`gpus` service field)
+- Python 3 for the installer
+- Recommended host driver: Linux 550.54.15+; Windows / WSL2 551.61+. Older CUDA 12.x minor-compatible drivers may have limitations and are not the supported starting point for this branch.
+- No host CUDA Toolkit is needed: the container supplies CUDA 12.4.1. `nvidia-smi` reports the maximum CUDA version supported by the driver, not the installed Toolkit.
 - NVIDIA driver and NVIDIA Container Toolkit configured for Docker (`docker run --gpus all ... nvidia-smi` must work)
 - A CUDA-capable NVIDIA GPU
 - At least 32GB system RAM; 64GB or more is recommended
@@ -42,12 +49,14 @@ For vision experiments, also download `mmproj-Gemma4-26B-A4B-QAT-Uncensored-Hauh
 ### 2. Configure and build
 
 ```bash
-git clone git@github.com:RockinWool/Gemma4-26B-A4B_on_docker.git
+git clone --branch rtx3070-8gb https://github.com/RockinWool/Gemma4-26B-A4B_on_docker.git
 cd Gemma4-26B-A4B_on_docker
-./scripts/install.sh --model-dir ~/models/Gemma4-26B-A4B-QAT-MTP --context 65536 --cuda-arch 120
+./scripts/install.sh --model-dir ~/models/Gemma4-26B-A4B-QAT-MTP --context 16384 --cuda-arch 86
 ```
 
-`CUDA_ARCH=120` is for RTX 50-series GPUs. Set the architecture appropriate to your GPU before building (for example, `89` for Ada). The installer creates a private `.env` file and builds llama.cpp; it does not upload or copy model files.
+`CUDA_ARCH=86` targets RTX 3070. This branch uses its own image tag and Compose project name. Stop the old server first if it uses port 8096. The installer checks model files and GPU access before compiling, then checks CUDA device enumeration in the built server. It preserves an existing `.env` by refusing to overwrite it; for an existing checkout, back up the previous `.env` and regenerate it from this branch.
+
+The build pins llama.cpp to `3d65c90d04d337e88f2b1f7f0061f40a5324e662` instead of moving HEAD. `BUILD_JOBS=4` limits compilation RAM usage.
 
 ### 3. Run
 
@@ -62,8 +71,8 @@ The server exposes an OpenAI-compatible API at `http://127.0.0.1:8096/v1`. Stop 
 
 | GPU memory | Suggested starting context | Notes |
 |---:|---:|---|
-| 8GB | 65,536 | Text-only recommended; leave margin for the desktop and CUDA allocations. |
-| 16GB | 131,072 | Validated on RTX 5060 Ti with this exact configuration. |
+| RTX 3070 8GB | 16,384 | Text-only recommended; leave margin for the desktop and CUDA allocations. |
+| RTX 5060 Ti 16GB (original branch) | 131,072 | Historical result; use main for RTX 50-series. |
 
 The values are starting points, not guarantees. For an 8GB GPU, keep `CPU_MOE_LAYERS=30`, use Q4 KV cache, close competing GPU workloads, and validate with a short request before raising context.
 
@@ -86,3 +95,28 @@ The API response includes llama.cpp's `timings.prompt_per_second`, `timings.pred
 ## License
 
 The repository's orchestration code is MIT-licensed. Model weights and upstream model terms are not covered by that license; review the upstream model card and its Gemma license before downloading or redistributing weights.
+
+## RTX 3070 troubleshooting
+
+Start with `nvidia-smi` and the installer preflight. Do not install a Linux NVIDIA driver inside WSL2; update the Windows host driver instead.
+
+| Symptom | Action |
+|---|---|
+| `unsatisfied condition: cuda>=12.4` / insufficient driver | Update the host driver to the recommended version above. CUDA in the container cannot replace a host driver. |
+| `could not select device driver ... gpu` | Install/configure NVIDIA Container Toolkit for Docker, restart Docker, then retry the preflight. |
+| `no kernel image is available` / invalid device function | Regenerate `.env` with `CUDA_ARCH=86` and run `docker compose build --no-cache`. |
+| CUDA out of memory | Set `CONTEXT_SIZE=8192`, `UBATCH_SIZE=64`, keep `CPU_MOE_LAYERS=30`, stop other GPU workloads and recreate the server. If necessary reduce `GPU_LAYERS` from 99 to 20 (slower CPU fallback). |
+| Host RAM exhaustion / exit 137 | The 16.8GB model stays largely in RAM; use at least 32GB and close other memory-heavy apps. |
+
+After editing `.env`, run `docker compose up -d --force-recreate gemma-server`. Verify inference, not just `/v1/models`:
+
+```bash
+curl --fail-with-body http://127.0.0.1:8096/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"Say hello in Japanese."}],"max_tokens":32}'
+docker compose logs --tail=200 gemma-server
+```
+
+If it still fails, retain the output of `nvidia-smi`, `docker compose version`, the build failure and the server logs. No RTX 3070 speed or memory guarantee is inferred from the RTX 5060 Ti results.
+
+Driver references: [CUDA 12.4.1 release notes](https://docs.nvidia.com/cuda/archive/12.4.1/cuda-toolkit-release-notes/) and [NVIDIA CUDA compatibility](https://docs.nvidia.com/deploy/cuda-compatibility/minor-version-compatibility.html).
