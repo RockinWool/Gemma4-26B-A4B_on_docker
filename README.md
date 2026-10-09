@@ -1,6 +1,6 @@
 # Gemma 4 26B-A4B QAT MTP — RTX 3070 8GB branch
 
-A reproducible Docker configuration for running [HauhauCS/Gemma4-26B-A4B-QAT-Uncensored-HauhauCS-Balanced-MTP](https://huggingface.co/HauhauCS/Gemma4-26B-A4B-QAT-Uncensored-HauhauCS-Balanced-MTP) with current `llama.cpp`, CUDA, Q4 KV cache, CPU-resident MoE layers, and the bundled MTP draft head.
+A reproducible Docker configuration for running [HauhauCS/Gemma4-26B-A4B-QAT-Uncensored-HauhauCS-Balanced-MTP](https://huggingface.co/HauhauCS/Gemma4-26B-A4B-QAT-Uncensored-HauhauCS-Balanced-MTP) with a pinned `llama.cpp`, CUDA, Q4 KV cache, CPU-resident MoE layers, and the bundled MTP draft head.
 
 The design targets GPUs that cannot hold the complete 16.8GB GGUF with an adequate KV cache. It places all 30 MoE layers in system RAM while retaining dense compute, KV cache, and MTP on one NVIDIA GPU.
 
@@ -8,7 +8,7 @@ The design targets GPUs that cannot hold the complete 16.8GB GGUF with an adequa
 
 ## Validation status
 
-This branch targets RTX 3070 8GB (Ampere / SM 86) using CUDA 12.4.1, a 16,384-token context and a 128-token microbatch. **RTX 3070 inference and the Docker build have not been tested here**; the environment used to prepare this branch has no Docker or NVIDIA GPU. The figures below are historical results from the original RTX 5060 Ti configuration, not RTX 3070 measurements.
+This branch targets RTX 3070 8GB (Ampere / SM 86) using CUDA 12.4.1 and a 128-token microbatch. On 2026-10-09, an RTX 3070 8GB system running Ubuntu 24.04 completed the CUDA build, server startup, model-list request, and interactive chat at a configured 65,536-token context. Throughput and memory measurements were not recorded, so the branch retains a conservative 16,384-token default for new installations. The figures below are historical results from the original RTX 5060 Ti configuration, not RTX 3070 measurements.
 
 ## Original configuration measurements
 
@@ -25,7 +25,7 @@ See [docs/BENCHMARKS.md](docs/BENCHMARKS.md) for conditions and the 32K comparis
 - Python 3 for the installer
 - Recommended host driver: Linux 550.54.15+; Windows / WSL2 551.61+. Older CUDA 12.x minor-compatible drivers may have limitations and are not the supported starting point for this branch.
 - No host CUDA Toolkit is needed: the container supplies CUDA 12.4.1. `nvidia-smi` reports the maximum CUDA version supported by the driver, not the installed Toolkit.
-- NVIDIA driver and NVIDIA Container Toolkit configured for Docker (`docker run --gpus all ... nvidia-smi` must work)
+- NVIDIA driver and [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) configured for Docker (`docker run --gpus all ... nvidia-smi` must work)
 - A CUDA-capable NVIDIA GPU
 - At least 32GB system RAM; 64GB or more is recommended
 - Approximately 18GB disk space for the text GGUF plus MTP head; add 1.2GB for optional vision
@@ -65,13 +65,13 @@ The build pins llama.cpp to `3d65c90d04d337e88f2b1f7f0061f40a5324e662` instead o
 curl http://127.0.0.1:8096/v1/models
 ```
 
-The server exposes an OpenAI-compatible API at `http://127.0.0.1:8096/v1`. Stop it with `./scripts/stop.sh`.
+Open [http://127.0.0.1:8096](http://127.0.0.1:8096) for llama.cpp's built-in chat interface. The server exposes an OpenAI-compatible API at `http://127.0.0.1:8096/v1`. See [Chat and API access](docs/CHAT.md) for a complete curl request and SSH access from another computer. Stop it with `./scripts/stop.sh`.
 
 ## Context and VRAM guidance
 
 | GPU memory | Suggested starting context | Notes |
 |---:|---:|---|
-| RTX 3070 8GB | 16,384 | Text-only recommended; leave margin for the desktop and CUDA allocations. |
+| RTX 3070 8GB | 16,384 | Conservative default. A 65,536-token configuration has completed startup and chat on one Ubuntu 24.04 system. |
 | RTX 5060 Ti 16GB (original branch) | 131,072 | Historical result; use main for RTX 50-series. |
 
 The values are starting points, not guarantees. For an 8GB GPU, keep `CPU_MOE_LAYERS=30`, use Q4 KV cache, close competing GPU workloads, and validate with a short request before raising context.
@@ -92,10 +92,6 @@ The API response includes llama.cpp's `timings.prompt_per_second`, `timings.pred
 - `--cache-type-k q4_0 --cache-type-v q4_0`: reduces KV-cache memory use.
 - `--fit off`: avoids a current automatic-fit issue with this Gemma 4 server profile.
 
-## License
-
-The repository's orchestration code is MIT-licensed. Model weights and upstream model terms are not covered by that license; review the upstream model card and its Gemma license before downloading or redistributing weights.
-
 ## RTX 3070 troubleshooting
 
 Start with `nvidia-smi` and the installer preflight. Do not install a Linux NVIDIA driver inside WSL2; update the Windows host driver instead.
@@ -104,6 +100,7 @@ Start with `nvidia-smi` and the installer preflight. Do not install a Linux NVID
 |---|---|
 | `unsatisfied condition: cuda>=12.4` / insufficient driver | Update the host driver to the recommended version above. CUDA in the container cannot replace a host driver. |
 | `could not select device driver ... gpu` | Install/configure NVIDIA Container Toolkit for Docker, restart Docker, then retry the preflight. |
+| `failed to discover GPU vendor from CDI` | The host driver or NVIDIA Container Toolkit is missing or not registered with Docker. Make `nvidia-smi` work first, run `sudo nvidia-ctk runtime configure --runtime=docker`, restart Docker, and retry the CUDA-container preflight. |
 | `no kernel image is available` / invalid device function | Regenerate `.env` with `CUDA_ARCH=86` and run `docker compose build --no-cache`. |
 | `Unsupported gpu architecture 'compute_120'` | An RTX 50-series `.env` is still present. Rerun `./scripts/install.sh --model-dir /path/to/models` without `--cuda-arch`; do not proceed directly to `start.sh`. |
 | CUDA out of memory | Set `CONTEXT_SIZE=8192`, `UBATCH_SIZE=64`, keep `CPU_MOE_LAYERS=30`, stop other GPU workloads and recreate the server. If necessary reduce `GPU_LAYERS` from 99 to 20 (slower CPU fallback). |
@@ -121,3 +118,7 @@ docker compose logs --tail=200 gemma-server
 If it still fails, retain the output of `nvidia-smi`, `docker compose version`, the build failure and the server logs. No RTX 3070 speed or memory guarantee is inferred from the RTX 5060 Ti results.
 
 Driver references: [CUDA 12.4.1 release notes](https://docs.nvidia.com/cuda/archive/12.4.1/cuda-toolkit-release-notes/) and [NVIDIA CUDA compatibility](https://docs.nvidia.com/deploy/cuda-compatibility/minor-version-compatibility.html).
+
+## License
+
+The repository's orchestration code is MIT-licensed. Model weights and upstream model terms are not covered by that license; review the upstream model card and its Gemma license before downloading or redistributing weights.

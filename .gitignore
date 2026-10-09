@@ -1,5 +1,6 @@
 # User-specific configuration and measurement output
 .env
+.env.backup.*
 results/
 __pycache__/
 *.py[cod]
