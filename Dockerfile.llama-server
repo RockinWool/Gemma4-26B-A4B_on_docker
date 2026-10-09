@@ -12,7 +12,7 @@ RUN git init llama.cpp && cd llama.cpp \
     && git fetch --depth 1 origin ${LLAMA_CPP_REF} \
     && git checkout --detach FETCH_HEAD
 WORKDIR /opt/llama.cpp
-RUN ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/libcuda.so.1 \
+RUN ln -sf /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/libcuda.so.1 \
     && cmake -B build \
       -DGGML_CUDA=ON \
       -DGGML_NATIVE=OFF \

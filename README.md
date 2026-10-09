@@ -51,10 +51,10 @@ For vision experiments, also download `mmproj-Gemma4-26B-A4B-QAT-Uncensored-Hauh
 ```bash
 git clone --branch rtx3070-8gb https://github.com/RockinWool/Gemma4-26B-A4B_on_docker.git
 cd Gemma4-26B-A4B_on_docker
-./scripts/install.sh --model-dir ~/models/Gemma4-26B-A4B-QAT-MTP --context 16384 --cuda-arch 86
+./scripts/install.sh --model-dir ~/models/Gemma4-26B-A4B-QAT-MTP
 ```
 
-`CUDA_ARCH=86` targets RTX 3070. This branch uses its own image tag and Compose project name. Stop the old server first if it uses port 8096. The installer checks model files and GPU access before compiling, then checks CUDA device enumeration in the built server. It preserves an existing `.env` by refusing to overwrite it; for an existing checkout, back up the previous `.env` and regenerate it from this branch.
+`CUDA_ARCH=86` targets RTX 3070. This branch uses its own image tag and Compose project name. Stop the old server first if it uses port 8096. The installer checks model files and GPU access before compiling, then checks CUDA device enumeration in the built server. If an `.env` from another branch exists, it is copied to a timestamped `.env.backup.*` file before the RTX 3070 configuration is generated. `start.sh` also refuses to build when `.env` does not contain `CUDA_ARCH=86`.
 
 The build pins llama.cpp to `3d65c90d04d337e88f2b1f7f0061f40a5324e662` instead of moving HEAD. `BUILD_JOBS=4` limits compilation RAM usage.
 
@@ -105,6 +105,7 @@ Start with `nvidia-smi` and the installer preflight. Do not install a Linux NVID
 | `unsatisfied condition: cuda>=12.4` / insufficient driver | Update the host driver to the recommended version above. CUDA in the container cannot replace a host driver. |
 | `could not select device driver ... gpu` | Install/configure NVIDIA Container Toolkit for Docker, restart Docker, then retry the preflight. |
 | `no kernel image is available` / invalid device function | Regenerate `.env` with `CUDA_ARCH=86` and run `docker compose build --no-cache`. |
+| `Unsupported gpu architecture 'compute_120'` | An RTX 50-series `.env` is still present. Rerun `./scripts/install.sh --model-dir /path/to/models` without `--cuda-arch`; do not proceed directly to `start.sh`. |
 | CUDA out of memory | Set `CONTEXT_SIZE=8192`, `UBATCH_SIZE=64`, keep `CPU_MOE_LAYERS=30`, stop other GPU workloads and recreate the server. If necessary reduce `GPU_LAYERS` from 99 to 20 (slower CPU fallback). |
 | Host RAM exhaustion / exit 137 | The 16.8GB model stays largely in RAM; use at least 32GB and close other memory-heavy apps. |
 

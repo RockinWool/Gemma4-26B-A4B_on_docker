@@ -33,8 +33,12 @@ command -v nvidia-smi >/dev/null || { echo 'NVIDIA driver / nvidia-smi is requir
 
 command -v python3 >/dev/null || { echo 'Python 3 is required.' >&2; exit 1; }
 [[ "$context" =~ ^[1-9][0-9]*$ ]] || { echo 'Context must be a positive integer.' >&2; exit 2; }
-[[ "$cuda_arch" == 86 ]] || { echo 'This branch targets RTX 3070 (CUDA_ARCH=86).' >&2; exit 2; }
-[[ ! -e .env ]] || { echo '.env already exists; edit it and run docker compose build, or back it up before reinstalling.' >&2; exit 2; }
+[[ "$cuda_arch" == 86 ]] || {
+  echo "RTX 3070 requires CUDA_ARCH=86, but '$cuda_arch' was requested." >&2
+  echo 'Run the installer again without --cuda-arch, or pass --cuda-arch 86.' >&2
+  echo 'Do not run start.sh after this error: an old .env may still target another GPU.' >&2
+  exit 2
+}
 for file in Gemma4-26B-A4B-QAT-Uncensored-HauhauCS-Balanced-Q4_K_M.gguf mtp-gemma-4-26B-A4B-it.gguf; do
   [[ -s "$model_dir/$file" ]] || { echo "Missing model file: $model_dir/$file" >&2; exit 2; }
 done
@@ -43,6 +47,12 @@ docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi || {
   echo 'CUDA container preflight failed. Check the host NVIDIA driver and NVIDIA Container Toolkit; see README.md.' >&2
   exit 1
 }
+
+if [[ -e .env ]]; then
+  backup=".env.backup.$(date -u +%Y%m%dT%H%M%SZ)"
+  cp -p -- .env "$backup"
+  printf 'Existing .env backed up to %s\n' "$backup"
+fi
 
 python3 - "$model_dir" "$context" "$cuda_arch" <<'PY2'
 from pathlib import Path
