@@ -1,6 +1,6 @@
 # Gemma 4 26B-A4B QAT MTP on Docker
 
-A reproducible Docker configuration for running [HauhauCS/Gemma4-26B-A4B-QAT-Uncensored-HauhauCS-Balanced-MTP](https://huggingface.co/HauhauCS/Gemma4-26B-A4B-QAT-Uncensored-HauhauCS-Balanced-MTP) with current `llama.cpp`, CUDA, Q4 KV cache, CPU-resident MoE layers, and the bundled MTP draft head.
+A reproducible Docker configuration for running [HauhauCS/Gemma4-26B-A4B-QAT-Uncensored-HauhauCS-Balanced-MTP](https://huggingface.co/HauhauCS/Gemma4-26B-A4B-QAT-Uncensored-HauhauCS-Balanced-MTP) with a pinned `llama.cpp`, CUDA, Q4 KV cache, CPU-resident MoE layers, and the bundled MTP draft head.
 
 The design targets GPUs that cannot hold the complete 16.8GB GGUF with an adequate KV cache. It places all 30 MoE layers in system RAM while retaining dense compute, KV cache, and MTP on one NVIDIA GPU.
 
